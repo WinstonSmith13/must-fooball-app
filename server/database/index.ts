@@ -1,7 +1,7 @@
 import { connectToDatabase } from './mongo'
 import type { Collection } from 'mongodb'
 
-/** Helper générique → auto-complétion VS Code sur les modèles */
+/** Helper générique typé */
 export const getCollection = async <T = unknown>(
   name: string
 ): Promise<Collection<T>> => {
@@ -9,32 +9,35 @@ export const getCollection = async <T = unknown>(
   return db.collection<T>(name)
 }
 
-/** Création d’index (à appeler une seule fois) */
+/** Création des index : à appeler au boot */
 export const ensureIndexes = async () => {
-  const players   = await getCollection('players')
-  const sessions  = await getCollection('sessions')      // ← pluriel
-  const regs      = await getCollection('registrations')
+  const players  = await getCollection('players')
+  const sessions = await getCollection('sessions')
+  const regs     = await getCollection('registrations')
 
-  // Index players
+  /* ----------- Players ------------------------------------------ */
   await Promise.all([
     players.createIndex({ email: 1 }, { unique: true, sparse: true }),
-    players.createIndex({ phone: 1 }, { unique: true, sparse: true })
+    players.createIndex({ phone: 1 }, { unique: true, sparse: true }),
+    // rapide recherche par nom
+    players.createIndex({ lastName: 1, firstName: 1 })
   ])
 
-  // Index sessions : un seul créneau par groupe/date/heure
-  sessions.createIndex(
+  /* ----------- Sessions ----------------------------------------- */
+  await sessions.createIndex(                       
     { groupId: 1, sport: 1, date: 1, startTime: 1 },
     { unique: true }
   )
+  // pour filtrer rapidement les sessions ouvertes à venir
+  await sessions.createIndex({ isClosed: 1, date: 1 })
 
-  // Index registrations : un joueur ne peut s’inscrire qu’une fois par session
-  await regs.createIndex(
-    { sessionId: 1, playerId: 1 },
-    { unique: true }
-  )
-
-  // (facultatif) pour trier plus vite les lists d’attente
-  await regs.createIndex({ sessionId: 1, status: 1, createdAt: 1 })
+  /* ----------- Registrations ------------------------------------ */
+  await Promise.all([
+    // un joueur inscrit une seule fois par session
+    regs.createIndex({ sessionId: 1, playerId: 1 }, { unique: true }),
+    // promouvoir la plus vieille attente
+    regs.createIndex({ sessionId: 1, status: 1, createdAt: 1 })
+  ])
 }
 
 export { connectToDatabase }

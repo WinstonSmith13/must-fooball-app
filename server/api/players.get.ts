@@ -2,6 +2,7 @@ import { defineEventHandler, getQuery } from 'h3'
 import { getCollection } from '~/server/database'
 import type { Player } from '~/server/schemas/player'
 import { ObjectId } from 'mongodb'
+import { Sort } from 'mongodb'
 import { z } from 'zod'
 
 /* ------------------------------------------------------------------ */
@@ -45,7 +46,7 @@ export default defineEventHandler(async (event) => {
 
   const cursor  = playersCol
     .find(filter)
-    .sort(sortObj)
+    .sort({ [sort]: dir === 'asc' ? 1 : -1 } as Sort)  // cast local
     .skip((page - 1) * limit)
     .limit(limit)
 
